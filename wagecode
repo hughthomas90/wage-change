@@ -2,76 +2,70 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# Page config
-st.set_page_config(page_title="Salary vs. Inflation", layout="centered")
+st.set_page_config(page_title="Salary Truth Checker", layout="centered")
 
-st.title("💸 The Real-Terms Salary Calculator")
-st.write("Check how your salary holds up against inflation based on company performance tables.")
+st.title("📉 The Real-Terms Salary Calculator")
+st.write("Visualizing the gap between your pay rise and ONS inflation.")
 
-# --- SIDEBAR CONTROLS ---
-st.sidebar.header("Settings")
-start_salary = st.sidebar.number_input("Starting Salary in 2017 (£)", value=40000, step=1000)
-show_gap = st.sidebar.checkbox("Highlight Purchasing Power Loss", value=True)
+# --- INPUTS ---
+col1, col2 = st.columns(2)
+start_salary = col1.number_input("Starting Salary (2017)", value=40000, step=1000)
+optimistic_2023 = col2.checkbox("Assume 2023 'Plus' was additive?", value=True, help="If checked, 2023 raise = 2.3% + 2.5%. If unchecked, it's just 2.3%.")
 
-# --- DATA SETUP ---
+# --- DATA ---
 years = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
-inflation_rates = [1.0, 2.6, 2.3, 1.7, 1.0, 2.5, 8.8, 4.2, 3.9]
+inflation = [0.0, 2.6, 2.3, 1.7, 1.0, 2.5, 8.8, 4.2, 3.9] # 2017 is 0 relative to start
 
-# Pay Rise Scenarios (Fixed percentages from your image)
-# Average Worker
-avg_worker_rises = [2.25, 2.25, 2.2, 2.15, 2.3, 3.3, 4.8, 2.3, 2.3]
-# Above Average Worker
-above_avg_rises = [2.25, 2.25, 3.0, 2.9, 2.75, 3.75, 5.2, 2.7, 2.7]
+# Avg Worker (Successful / 3)
+avg_raises = [0, 2.25, 2.25, 2.15, 2.3, 3.3, 4.8 if optimistic_2023 else 2.3, 2.3, 2.3]
 
-# --- CALCULATIONS ---
-current_avg = start_salary
-current_high = start_salary
-current_real = start_salary
+# Above Avg Worker (Avg early, Strong later)
+# 2022: 2.75+1, 2023: 2.7+2.5(opt), 2024: 2.7
+strong_raises = [0, 2.25, 2.25, 2.15, 2.75, 3.75, 5.2 if optimistic_2023 else 2.7, 2.7, 2.7]
 
-avg_history = []
-high_history = []
-real_history = []
+# --- CALCULATE ---
+curr_avg = start_salary
+curr_strong = start_salary
+curr_inf = start_salary
 
+data = []
 for i in range(len(years)):
-    # Apply raises
-    current_avg = current_avg * (1 + avg_worker_rises[i]/100)
-    current_high = current_high * (1 + above_avg_rises[i]/100)
+    # Apply raise (Raise in year X applies to Year X salary usually, but table implies Year X raise is based on past performance)
+    # Model: You start 2017 at flat salary. 
+    if i > 0:
+        curr_avg *= (1 + avg_raises[i]/100)
+        curr_strong *= (1 + strong_raises[i]/100)
+        curr_inf *= (1 + inflation[i]/100)
     
-    # Apply inflation
-    current_real = current_real * (1 + inflation_rates[i]/100)
-    
-    avg_history.append(current_avg)
-    high_history.append(current_high)
-    real_history.append(current_real)
+    data.append({
+        "Year": years[i],
+        "Real Inflation Need": curr_inf,
+        "Above Avg Salary": curr_strong,
+        "Avg Salary": curr_avg
+    })
 
-# --- PLOTTING ---
+df = pd.DataFrame(data)
+
+# --- PLOT ---
 fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(df['Year'], df['Real Inflation Need'], label='Required to Stand Still (Inflation)', color='#e74c3c', linewidth=3, linestyle='--')
+ax.plot(df['Year'], df['Above Avg Salary'], label='Above Avg Worker', color='#2ecc71', linewidth=3)
+ax.plot(df['Year'], df['Avg Salary'], label='Avg Worker', color='#f1c40f', linewidth=3)
 
-# Plot lines
-ax.plot(years, real_history, label='Required to Match Inflation', color='#e74c3c', linewidth=3, linestyle='--')
-ax.plot(years, high_history, label='Above Average Worker', color='#2ecc71', linewidth=3)
-ax.plot(years, avg_history, label='Average Worker', color='#f1c40f', linewidth=3)
+# Labels
+final_inf = df['Real Inflation Need'].iloc[-1]
+final_strong = df['Above Avg Salary'].iloc[-1]
 
-# Add value labels for 2025
-ax.text(2025.1, real_history[-1], f"£{int(real_history[-1]):,}", color='#e74c3c', fontweight='bold', va='center')
-ax.text(2025.1, high_history[-1], f"£{int(high_history[-1]):,}", color='#2ecc71', fontweight='bold', va='center')
-ax.text(2025.1, avg_history[-1], f"£{int(avg_history[-1]):,}", color='#f1c40f', fontweight='bold', va='center')
+ax.text(2025.1, final_inf, f"£{int(final_inf):,}", color='#e74c3c', fontweight='bold', va='center')
+ax.text(2025.1, final_strong, f"£{int(final_strong):,}", color='#2ecc71', fontweight='bold', va='center')
 
-# Highlight the gap
-if show_gap:
-    ax.fill_between(years, avg_history, real_history, color='red', alpha=0.1, label='Loss of Purchasing Power')
+ax.set_title(f"Salary vs Inflation (Start: £{start_salary:,})")
+ax.grid(True, alpha=0.3)
+ax.legend()
 
-ax.set_title(f"Salary Progression vs. Inflation (Start: £{start_salary:,})")
-ax.set_ylabel("Annual Salary (£)")
-ax.grid(True, linestyle='--', alpha=0.5)
-ax.legend(loc='upper left')
-
-# Render in Streamlit
 st.pyplot(fig)
 
-# --- SUMMARY METRICS ---
-st.markdown("---")
-col1, col2, col3 = st.columns(3)
-col1.metric("Real Inflation Need", f"£{int(real_history[-1]):,}")
-col2.metric("Actual Avg Salary", f"£{int(avg_history[-1]):,}", delta=f"-£{int(real_history[-1] - avg_history[-1]):,}", delta_color="inverse")
-col3.metric("Purchasing Power Loss", f"{((avg_history[-1]/real_history[-1] - 1)*100):.1f}%")
+# --- METRICS ---
+loss = final_strong - final_inf
+st.error(f"⚠️ Real Terms Loss (2025): £{int(loss):,}")
+st.caption(f"You need to earn £{int(final_inf):,} today to match the purchasing power of your starting salary.")
