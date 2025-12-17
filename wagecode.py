@@ -8,7 +8,7 @@ st.set_page_config(page_title="Salary vs RPI Analyzer", layout="wide")
 st.title("💸 The RPI Reality Check (Year-to-March)")
 st.markdown("""
 This tool compares your salary against **RPI (Retail Prices Index)** for the year to March. 
-RPI is the standard used by unions for pay negotiations because it better reflects housing costs (mortgages/rent).
+RPI is the standard used by unions for pay negotiations because it better reflects housing costs (mortgages/rent), although it is no longer recognised by ONS as an official statistic.
 """)
 
 # --- SIDEBAR CONTROLS ---
@@ -17,7 +17,7 @@ start_salary = st.sidebar.number_input("Starting Salary in March 2020 (£)", val
 
 st.sidebar.header("2. Inflation Metrics")
 show_rpi = st.sidebar.checkbox("Show RPI (March) Line", value=True, help="Plots the Retail Prices Index. Usually higher than CPI.")
-show_cpi = st.sidebar.checkbox("Show Company Table (ONS) Line", value=True, help="Plots the inflation figures provided in your original image.")
+show_cpi = st.sidebar.checkbox("Show CPIH (March) Line", value=True, help="Plots ONS CPIH.")
 
 st.sidebar.header("3. Footnote Adjustments")
 apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True)
@@ -27,8 +27,8 @@ apply_2024_adj = st.sidebar.checkbox("Apply 2024 Variance?", value=True)
 # --- DATA ---
 years = [2020, 2021, 2022, 2023, 2024, 2025]
 
-# 1. User's Original Table Data (Likely CPI/CPIH Mix)
-inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 4.2, 2025: 3.9}
+# 1. User's Original Table Data (CPIH)
+inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 3.8, 2025: 3.4}
 
 # 2. RPI Data (Official ONS "All Items" RPI percentage change over 12 months to March)
 rpi_map = {
