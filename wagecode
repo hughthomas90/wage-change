@@ -1,0 +1,76 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Data Extraction based on user image and reasoning
+years = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+
+# Inflation (ONS) column from the table
+inflation_rates = [1.0, 2.6, 2.3, 1.7, 1.0, 2.5, 8.8, 4.2, 3.9]
+
+# Pay Rise Scenarios
+# Average Worker: "Successful Performance / 3"
+# 2019 assumed 2.2% (interpolation), 2022 adds 1% (footnote), 2023 adds 2.5% (footnote approx)
+avg_worker_rises = [2.25, 2.25, 2.2, 2.15, 2.3, 3.3, 4.8, 2.3, 2.3]
+
+# Above Average: Mixed performance
+# Years 1-2 (Average), Years 3+ (Very Strong)
+# 2019 assumed 3.0% (interpolation), 2022 adds 1%, 2023 adds 2.5%
+above_avg_rises = [2.25, 2.25, 3.0, 2.9, 2.75, 3.75, 5.2, 2.7, 2.7]
+
+# Starting Salary
+start_salary = 40000
+
+# Calculate Trajectories
+salary_avg = [start_salary]
+salary_high = [start_salary]
+salary_real = [start_salary]
+
+# Calculate cumulative changes
+current_avg = start_salary
+current_high = start_salary
+current_real = start_salary
+
+avg_history = []
+high_history = []
+real_history = []
+
+for i in range(len(years)):
+    # Apply raises
+    current_avg = current_avg * (1 + avg_worker_rises[i]/100)
+    current_high = current_high * (1 + above_avg_rises[i]/100)
+    
+    # Apply inflation (This tracks what 40k needs to become to match purchasing power)
+    current_real = current_real * (1 + inflation_rates[i]/100)
+    
+    avg_history.append(current_avg)
+    high_history.append(current_high)
+    real_history.append(current_real)
+
+# Plotting
+plt.figure(figsize=(10, 6))
+
+# Plot lines
+plt.plot(years, real_history, label='Required to Match Inflation (Real Terms)', color='#e74c3c', linewidth=3, linestyle='--')
+plt.plot(years, high_history, label='Above Average Worker Salary', color='#2ecc71', linewidth=3)
+plt.plot(years, avg_history, label='Average Worker Salary', color='#f1c40f', linewidth=3)
+
+# Formatting
+plt.title("Salary Progression vs. Real Inflation (Starting £40k in 2017)", fontsize=14, pad=20)
+plt.ylabel("Annual Salary (£)", fontsize=12)
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.xticks(years)
+plt.legend(loc='upper left', fontsize=10)
+
+# Add value labels for final year
+plt.text(2025.1, real_history[-1], f"£{int(real_history[-1]):,}", color='#e74c3c', fontweight='bold', va='center')
+plt.text(2025.1, high_history[-1], f"£{int(high_history[-1]):,}", color='#2ecc71', fontweight='bold', va='center')
+plt.text(2025.1, avg_history[-1], f"£{int(avg_history[-1]):,}", color='#f1c40f', fontweight='bold', va='center')
+
+# Highlight the divergence
+plt.fill_between(years, avg_history, real_history, color='red', alpha=0.1, label='Loss of Purchasing Power')
+
+# Clean up axes
+plt.tight_layout()
+
+# Save plot
+plt.savefig('salary_vs_inflation.png')
