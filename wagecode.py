@@ -20,7 +20,7 @@ start_salary = st.sidebar.number_input("Starting Salary in March 2020 (£)", val
 st.sidebar.header("2. Choose Your Inflation")
 show_cpi = st.sidebar.checkbox("Show CPI", value=True, help="Consumer Prices Index (March). Best for pure cost of living.")
 show_rpi = st.sidebar.checkbox("Show RPI", value=True, help="Retail Prices Index (March). Includes housing interest.")
-show_table = st.sidebar.checkbox("Show CPIH", value=True, help="The numbers from your image.")
+show_table = st.sidebar.checkbox("Show CPIH", value=True, help="CPIH.")
 
 st.sidebar.header("3. Footnote Adjustments")
 apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True)
@@ -30,7 +30,7 @@ apply_2024_adj = st.sidebar.checkbox("Apply 2024 Variance?", value=True)
 # --- DATA SOURCE: ONS March Figures ---
 years = [2020, 2021, 2022, 2023, 2024, 2025]
 
-# 1. Company Table (From your image)
+# 1. CPIH
 inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 4.2, 2025: 3.9}
 
 # 2. RPI (ONS Series: CZBH - Percentage change over 12 months, March)
