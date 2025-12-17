@@ -3,173 +3,181 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Salary Truth Checker", layout="wide")
+st.set_page_config(page_title="Salary vs RPI Analyzer", layout="wide")
 
-st.title("💸 The Salary Realism Calculator (2020–2025)")
+st.title("💸 The RPI Reality Check (Year-to-March)")
 st.markdown("""
-**The Brutal Reality Check:** This tool plots your salary against the Bank of England/ONS inflation data provided in your table.
-It assumes you started in **2020** (getting no raise that first year) and tracks what happened to your purchasing power.
+This tool compares your salary against **RPI (Retail Prices Index)** for the year to March. 
+RPI is the standard used by unions for pay negotiations because it better reflects housing costs (mortgages/rent).
 """)
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("1. Personal Details")
-start_salary = st.sidebar.number_input("Starting Salary in 2020 (£)", value=48000, step=1000)
+start_salary = st.sidebar.number_input("Starting Salary in March 2020 (£)", value=48000, step=1000)
 
-st.sidebar.header("2. Company Adjustments (Footnotes)")
-st.sidebar.markdown("Toggle these to see if the company's 'interventions' actually fixed the problem.")
-apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True, help="Adds +1% if <50k, +2% if <30k (Footnote †)")
-apply_2023_adj = st.sidebar.checkbox("Apply 2023 Cost of Living Adj?", value=True, help="Adds +2-3% based on salary (Footnote ‡)")
-apply_2024_adj = st.sidebar.checkbox("Apply 2024 Variance?", value=True, help="Adds bump for lower earners similar to 2022 (Footnote §)")
+st.sidebar.header("2. Inflation Metrics")
+show_rpi = st.sidebar.checkbox("Show RPI (March) Line", value=True, help="Plots the Retail Prices Index. Usually higher than CPI.")
+show_cpi = st.sidebar.checkbox("Show Company Table (ONS) Line", value=True, help="Plots the inflation figures provided in your original image.")
+
+st.sidebar.header("3. Footnote Adjustments")
+apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True)
+apply_2023_adj = st.sidebar.checkbox("Apply 2023 Cost of Living Adj?", value=True)
+apply_2024_adj = st.sidebar.checkbox("Apply 2024 Variance?", value=True)
 
 # --- DATA ---
-# Inflation from user table
-inflation_map = {
-    2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 4.2, 2025: 3.9
+years = [2020, 2021, 2022, 2023, 2024, 2025]
+
+# 1. User's Original Table Data (Likely CPI/CPIH Mix)
+inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 4.2, 2025: 3.9}
+
+# 2. RPI Data (Official ONS "All Items" RPI percentage change over 12 months to March)
+rpi_map = {
+    2020: 2.6, 
+    2021: 1.5, 
+    2022: 9.0,   # The massive spike
+    2023: 13.5,  # Peak crisis
+    2024: 4.3, 
+    2025: 3.2    # OBR Forecast / Current Estimate
 }
 
-# Base Pay Rises (Outstanding / Very Strong / Successful)
-# Format: {Year: [Outstanding(1), Very Strong(2), Successful(3)]}
+# Base Pay Rises
 rates_db = {
-    2020: [0.0, 0.0, 0.0],  # No raise in start year
+    2020: [0.0, 0.0, 0.0],
     2021: [3.25, 2.75, 2.30],
     2022: [3.25, 2.75, 2.30], 
     2023: [3.70, 2.70, 2.30], 
-    2024: [3.70, 2.70, 2.30], # Conservative mid-points
+    2024: [3.70, 2.70, 2.30],
     2025: [3.70, 2.70, 2.30]
 }
 
 # --- CALCULATION ENGINE ---
 def calculate_path(scenario_name):
-    # Scenarios: 'Avg' (Always 3), 'Above' (Mixed), 'Top' (Always 1)
-    
     current_salary = start_salary
-    current_inflation_need = start_salary
     
-    # Store history for plotting
-    # We start recording at end of 2020
+    # We track two "Inflation Salaries" - one for Table Data, one for RPI
+    curr_inf_table = start_salary
+    curr_inf_rpi = start_salary
+    
     history_salary = []
-    history_inf = []
-    history_years = [2020, 2021, 2022, 2023, 2024, 2025]
+    history_inf_table = []
+    history_inf_rpi = []
     
     # Tooltip data
-    meta_raise_pct = []
-    meta_inf_pct = []
+    meta_raise = []
+    meta_rpi = []
+    meta_table = []
 
-    for year in history_years:
-        # 1. INFLATION (Happens every year, including 2020)
-        inf_rate = inflation_map[year]
-        current_inflation_need = current_inflation_need * (1 + inf_rate / 100)
-        meta_inf_pct.append(inf_rate)
+    for year in years:
+        # 1. INFLATION (Happens every year)
+        # Apply Table Inflation
+        curr_inf_table *= (1 + inf_table_map[year] / 100)
+        # Apply RPI Inflation
+        curr_inf_rpi *= (1 + rpi_map[year] / 100)
+        
+        meta_table.append(inf_table_map[year])
+        meta_rpi.append(rpi_map[year])
 
-        # 2. SALARY RAISE (Skipped in 2020)
+        # 2. SALARY (Skipped in 2020)
         if year == 2020:
             actual_raise = 0.0
         else:
             # Determine Base Rate
-            if scenario_name == 'Top Performer':
-                idx = 0 # Outstanding
-            elif scenario_name == 'Average Worker':
-                idx = 2 # Successful
-            else: # Above Average (Mixed: Avg early, Strong late)
-                idx = 2 if year <= 2022 else 1
+            if scenario_name == 'Top Performer': idx = 0 
+            elif scenario_name == 'Average Worker': idx = 2 
+            else: idx = 2 if year <= 2022 else 1 # Above Avg
             
             base_rate = rates_db[year][idx]
             
-            # Apply Footnotes (Logic based on *current* salary that year)
+            # Adjustments
             adj = 0.0
-            
-            # 2022: +1% (30-50k), +2% (<30k)
             if year == 2022 and apply_2022_adj:
                 if current_salary <= 30000: adj = 2.0
                 elif current_salary <= 50000: adj = 1.0
-            
-            # 2023: +2.5% (<50k), +2% (>50k) - approx for "2-3%"
             if year == 2023 and apply_2023_adj:
                 if current_salary <= 50000: adj = 2.5
                 else: adj = 2.0
-                
-            # 2024: Similar to 2022
             if year == 2024 and apply_2024_adj:
                 if current_salary <= 50000: adj = 1.5
                 else: adj = 1.0
 
             actual_raise = base_rate + adj
-            current_salary = current_salary * (1 + actual_raise / 100)
+            current_salary *= (1 + actual_raise / 100)
         
-        meta_raise_pct.append(actual_raise)
+        meta_raise.append(actual_raise)
         history_salary.append(current_salary)
-        history_inf.append(current_inflation_need)
+        history_inf_table.append(curr_inf_table)
+        history_inf_rpi.append(curr_inf_rpi)
 
-    return history_years, history_salary, history_inf, meta_raise_pct, meta_inf_pct
+    return history_salary, history_inf_table, history_inf_rpi, meta_raise, meta_rpi, meta_table
 
 # Generate Data
-y, sal_avg, inf_line, r_avg, i_meta = calculate_path('Average Worker')
-_, sal_abv, _, r_abv, _ = calculate_path('Above Average')
-_, sal_top, _, r_top, _ = calculate_path('Top Performer')
+sal_avg, inf_tab, inf_rpi, r_avg, m_rpi, m_tab = calculate_path('Average Worker')
+sal_abv, _, _, r_abv, _, _ = calculate_path('Above Average')
+sal_top, _, _, r_top, _, _ = calculate_path('Top Performer')
 
 # --- PLOTTING ---
 fig = go.Figure()
 
-# Inflation Line (Red Dashed)
-fig.add_trace(go.Scatter(
-    x=y, y=inf_line,
-    mode='lines+markers',
-    name='Inflation (Stand Still)',
-    line=dict(color='#e74c3c', width=4, dash='dot'),
-    hovertemplate="<b>Year: %{x}</b><br>Required: £%{y:,.0f}<br>Inflation: %{customdata}%",
-    customdata=i_meta
-))
+# RPI Line (Purple)
+if show_rpi:
+    fig.add_trace(go.Scatter(
+        x=years, y=inf_rpi,
+        mode='lines+markers',
+        name='RPI (Union Standard)',
+        line=dict(color='#8e44ad', width=4, dash='dot'),
+        hovertemplate="<b>Year: %{x}</b><br>Needs: £%{y:,.0f}<br>RPI: %{customdata}%",
+        customdata=m_rpi
+    ))
 
-# Top Performer (Green)
+# Table Inflation Line (Red)
+if show_cpi:
+    fig.add_trace(go.Scatter(
+        x=years, y=inf_tab,
+        mode='lines+markers',
+        name='Company Table (CPI)',
+        line=dict(color='#e74c3c', width=2, dash='dash'),
+        hovertemplate="<b>Year: %{x}</b><br>Needs: £%{y:,.0f}<br>Table Inf: %{customdata}%",
+        customdata=m_tab
+    ))
+
+# Salary Lines
 fig.add_trace(go.Scatter(
-    x=y, y=sal_top,
-    mode='lines+markers',
-    name='Outstanding (Top)',
+    x=years, y=sal_top, name='Outstanding (Top)',
     line=dict(color='#2ecc71', width=3),
-    hovertemplate="<b>Year: %{x}</b><br>Salary: £%{y:,.0f}<br>Raise: %{customdata:.2f}%",
-    customdata=r_top
+    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_top
 ))
 
-# Above Average (Blue)
 fig.add_trace(go.Scatter(
-    x=y, y=sal_abv,
-    mode='lines+markers',
-    name='Above Average (Improving)',
+    x=years, y=sal_abv, name='Above Average',
     line=dict(color='#3498db', width=3),
-    hovertemplate="<b>Year: %{x}</b><br>Salary: £%{y:,.0f}<br>Raise: %{customdata:.2f}%",
-    customdata=r_abv
+    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_abv
 ))
 
-# Average (Yellow)
 fig.add_trace(go.Scatter(
-    x=y, y=sal_avg,
-    mode='lines+markers',
-    name='Average Worker',
+    x=years, y=sal_avg, name='Average Worker',
     line=dict(color='#f1c40f', width=3),
-    hovertemplate="<b>Year: %{x}</b><br>Salary: £%{y:,.0f}<br>Raise: %{customdata:.2f}%",
-    customdata=r_avg
+    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_avg
 ))
 
 fig.update_layout(
-    title="Cumulative Salary vs Cost of Living (Start 2020: No Raise Year 1)",
-    xaxis_title="Year",
-    yaxis_title="Salary (£)",
-    hovermode="x unified",
-    template="plotly_white",
+    title="Salary vs RPI (The Real Cost of Living)",
+    xaxis_title="Year", yaxis_title="Salary (£)",
+    hovermode="x unified", template="plotly_white",
     legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# --- METRICS ---
-final_gap = sal_avg[-1] - inf_line[-1]
-final_top_gap = sal_top[-1] - inf_line[-1]
+# --- ANALYSIS ---
+gap_rpi = sal_avg[-1] - inf_rpi[-1]
+gap_top_rpi = sal_top[-1] - inf_rpi[-1]
+rpi_req = inf_rpi[-1]
 
-c1, c2 = st.columns(2)
-c1.metric("Inflation Requirement (2025)", f"£{int(inf_line[-1]):,}", f"+£{int(inf_line[-1]-start_salary):,} since 2020")
-c2.metric("Avg Worker Salary (2025)", f"£{int(sal_avg[-1]):,}", f"{int(final_gap):,} gap", delta_color="inverse")
+st.markdown("### 📉 The Verdict")
+col1, col2, col3 = st.columns(3)
+col1.metric("Required for RPI", f"£{int(rpi_req):,}", f"Cost of Living")
+col2.metric("Avg Worker Salary", f"£{int(sal_avg[-1]):,}", f"{int(gap_rpi):,} deficit", delta_color="inverse")
+col3.metric("Top Performer Gap", f"{int(gap_top_rpi):,}", "Even the best are losing", delta_color="inverse")
 
-if final_top_gap < 0:
-    st.error(f"⚠️ **Verdict:** Even an 'Outstanding' performer is poorer today than in 2020 (Gap: £{abs(int(final_top_gap)):,}).")
-else:
-    st.warning(f"⚠️ **Verdict:** Only 'Outstanding' performers kept up. Average workers lost £{abs(int(final_gap)):,}.")
+if gap_rpi < 0:
+    st.error(f"⚠️ **Conclusion:** An Average Worker is **£{abs(int(gap_rpi)):,}** worse off than in 2020 when adjusted for RPI.")
