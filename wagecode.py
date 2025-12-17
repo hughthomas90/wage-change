@@ -3,41 +3,56 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Salary vs RPI Analyzer", layout="wide")
+st.set_page_config(page_title="Salary Negotiation Master", layout="wide")
 
-st.title("💸 The RPI Reality Check (Year-to-March)")
+st.title("💸 The Salary Reality Check: CPI vs RPI vs Company")
 st.markdown("""
-This tool compares your salary against **RPI (Retail Prices Index)** for the year to March. 
-RPI is the standard used by unions for pay negotiations because it better reflects housing costs (mortgages/rent), although it is no longer recognised by ONS as an official statistic.
+**Choose your truth:**
+* **Company Line:** The inflation figures used to justify your pay (likely CPIH or cherry-picked).
+* **CPI (Blue):** Best if you **rent** or own outright. Tracks goods/services but excludes owner-occupier housing.
+* **RPI (Purple):** Best if you have a **mortgage**. Tracks the real cost of debt and housing.
 """)
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("1. Personal Details")
 start_salary = st.sidebar.number_input("Starting Salary in March 2020 (£)", value=48000, step=1000)
 
-st.sidebar.header("2. Inflation Metrics")
-show_rpi = st.sidebar.checkbox("Show RPI (March) Line", value=True, help="Plots the Retail Prices Index. Usually higher than CPI.")
-show_cpi = st.sidebar.checkbox("Show CPIH (March) Line", value=True, help="Plots ONS CPIH.")
+st.sidebar.header("2. Choose Your Inflation")
+show_cpi = st.sidebar.checkbox("Show CPI (Renters/No Mortgage)", value=True, help="Consumer Prices Index (March). Best for pure cost of living.")
+show_rpi = st.sidebar.checkbox("Show RPI (Mortgage Holders)", value=True, help="Retail Prices Index (March). Includes housing interest.")
+show_table = st.sidebar.checkbox("Show Company Table (The Justification)", value=True, help="The numbers from your image.")
 
 st.sidebar.header("3. Footnote Adjustments")
 apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True)
 apply_2023_adj = st.sidebar.checkbox("Apply 2023 Cost of Living Adj?", value=True)
 apply_2024_adj = st.sidebar.checkbox("Apply 2024 Variance?", value=True)
 
-# --- DATA ---
+# --- DATA SOURCE: ONS March Figures ---
 years = [2020, 2021, 2022, 2023, 2024, 2025]
 
-# 1. User's Original Table Data (CPIH)
-inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 3.8, 2025: 3.4}
+# 1. Company Table (From your image)
+inf_table_map = {2020: 1.7, 2021: 1.0, 2022: 2.5, 2023: 8.8, 2024: 4.2, 2025: 3.9}
 
-# 2. RPI Data (Official ONS "All Items" RPI percentage change over 12 months to March)
+# 2. RPI (ONS Series: CZBH - Percentage change over 12 months, March)
+# Source: https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/czbh/mm23
 rpi_map = {
     2020: 2.6, 
     2021: 1.5, 
-    2022: 9.0,   # The massive spike
-    2023: 13.5,  # Peak crisis
+    2022: 9.0,   # Massive divergence starts here
+    2023: 13.5,  # The crisis peak
     2024: 4.3, 
-    2025: 3.2    # OBR Forecast / Current Estimate
+    2025: 3.2    # Estimate/Forecast
+}
+
+# 3. CPI (ONS Series: D7G7 - Percentage change over 12 months, March)
+# Source: https://www.ons.gov.uk/economy/inflationandpriceindices/timeseries/d7g7/mm23
+cpi_map = {
+    2020: 1.5,
+    2021: 0.7,
+    2022: 7.0,   # Note: Company used 2.5% vs Real 7.0%
+    2023: 10.1,  # Note: Company used 8.8% vs Real 10.1%
+    2024: 3.2,
+    2025: 2.6    # OBR Forecast
 }
 
 # Base Pay Rises
@@ -54,30 +69,33 @@ rates_db = {
 def calculate_path(scenario_name):
     current_salary = start_salary
     
-    # We track two "Inflation Salaries" - one for Table Data, one for RPI
+    # Track 3 inflation paths
     curr_inf_table = start_salary
     curr_inf_rpi = start_salary
+    curr_inf_cpi = start_salary
     
-    history_salary = []
-    history_inf_table = []
-    history_inf_rpi = []
+    hist_sal = []
+    hist_inf_tab = []
+    hist_inf_rpi = []
+    hist_inf_cpi = []
     
-    # Tooltip data
+    # Metadata for tooltips
     meta_raise = []
     meta_rpi = []
-    meta_table = []
+    meta_cpi = []
+    meta_tab = []
 
     for year in years:
-        # 1. INFLATION (Happens every year)
-        # Apply Table Inflation
+        # 1. APPLY INFLATION (March Data)
         curr_inf_table *= (1 + inf_table_map[year] / 100)
-        # Apply RPI Inflation
         curr_inf_rpi *= (1 + rpi_map[year] / 100)
+        curr_inf_cpi *= (1 + cpi_map[year] / 100)
         
-        meta_table.append(inf_table_map[year])
+        meta_tab.append(inf_table_map[year])
         meta_rpi.append(rpi_map[year])
+        meta_cpi.append(cpi_map[year])
 
-        # 2. SALARY (Skipped in 2020)
+        # 2. APPLY SALARY (Skipped in 2020)
         if year == 2020:
             actual_raise = 0.0
         else:
@@ -104,63 +122,59 @@ def calculate_path(scenario_name):
             current_salary *= (1 + actual_raise / 100)
         
         meta_raise.append(actual_raise)
-        history_salary.append(current_salary)
-        history_inf_table.append(curr_inf_table)
-        history_inf_rpi.append(curr_inf_rpi)
+        hist_sal.append(current_salary)
+        hist_inf_tab.append(curr_inf_table)
+        hist_inf_rpi.append(curr_inf_rpi)
+        hist_inf_cpi.append(curr_inf_cpi)
 
-    return history_salary, history_inf_table, history_inf_rpi, meta_raise, meta_rpi, meta_table
+    return hist_sal, hist_inf_tab, hist_inf_rpi, hist_inf_cpi, meta_raise, meta_rpi, meta_cpi, meta_tab
 
-# Generate Data
-sal_avg, inf_tab, inf_rpi, r_avg, m_rpi, m_tab = calculate_path('Average Worker')
-sal_abv, _, _, r_abv, _, _ = calculate_path('Above Average')
-sal_top, _, _, r_top, _, _ = calculate_path('Top Performer')
+# Run Calculations
+sal_avg, inf_tab, inf_rpi, inf_cpi, r_avg, m_rpi, m_cpi, m_tab = calculate_path('Average Worker')
+sal_abv, _, _, _, r_abv, _, _, _ = calculate_path('Above Average')
+sal_top, _, _, _, r_top, _, _, _ = calculate_path('Top Performer')
 
 # --- PLOTTING ---
 fig = go.Figure()
 
-# RPI Line (Purple)
+# 1. RPI (Purple)
 if show_rpi:
     fig.add_trace(go.Scatter(
-        x=years, y=inf_rpi,
-        mode='lines+markers',
-        name='RPI (Union Standard)',
+        x=years, y=inf_rpi, mode='lines+markers', name='RPI (Mortgages)',
         line=dict(color='#8e44ad', width=4, dash='dot'),
-        hovertemplate="<b>Year: %{x}</b><br>Needs: £%{y:,.0f}<br>RPI: %{customdata}%",
-        customdata=m_rpi
+        hovertemplate="<b>%{x}</b><br>Need: £%{y:,.0f}<br>RPI: %{customdata}%", customdata=m_rpi
     ))
 
-# Table Inflation Line (Red)
+# 2. CPI (Blue)
 if show_cpi:
     fig.add_trace(go.Scatter(
-        x=years, y=inf_tab,
-        mode='lines+markers',
-        name='Company Table (CPI)',
-        line=dict(color='#e74c3c', width=2, dash='dash'),
-        hovertemplate="<b>Year: %{x}</b><br>Needs: £%{y:,.0f}<br>Table Inf: %{customdata}%",
-        customdata=m_tab
+        x=years, y=inf_cpi, mode='lines+markers', name='CPI (Rent/Living)',
+        line=dict(color='#2980b9', width=4, dash='dash'),
+        hovertemplate="<b>%{x}</b><br>Need: £%{y:,.0f}<br>CPI: %{customdata}%", customdata=m_cpi
     ))
 
-# Salary Lines
+# 3. Company Table (Red)
+if show_table:
+    fig.add_trace(go.Scatter(
+        x=years, y=inf_tab, mode='lines+markers', name='Company Table',
+        line=dict(color='#e74c3c', width=2),
+        hovertemplate="<b>%{x}</b><br>Need: £%{y:,.0f}<br>Table: %{customdata}%", customdata=m_tab
+    ))
+
+# 4. Salary Lines
 fig.add_trace(go.Scatter(
-    x=years, y=sal_top, name='Outstanding (Top)',
+    x=years, y=sal_top, name='Outstanding Perf.',
     line=dict(color='#2ecc71', width=3),
-    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_top
+    hovertemplate="£%{y:,.0f} (Rise: %{customdata:.2f}%)", customdata=r_top
 ))
-
 fig.add_trace(go.Scatter(
-    x=years, y=sal_abv, name='Above Average',
-    line=dict(color='#3498db', width=3),
-    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_abv
-))
-
-fig.add_trace(go.Scatter(
-    x=years, y=sal_avg, name='Average Worker',
+    x=years, y=sal_avg, name='Avg Worker',
     line=dict(color='#f1c40f', width=3),
-    hovertemplate="Salary: £%{y:,.0f} (Raise: %{customdata:.2f}%)", customdata=r_avg
+    hovertemplate="£%{y:,.0f} (Rise: %{customdata:.2f}%)", customdata=r_avg
 ))
 
 fig.update_layout(
-    title="Salary vs RPI (The Real Cost of Living)",
+    title="Cumulative Salary vs Inflation Metrics (2020-2025)",
     xaxis_title="Year", yaxis_title="Salary (£)",
     hovermode="x unified", template="plotly_white",
     legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
@@ -168,16 +182,30 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# --- ANALYSIS ---
-gap_rpi = sal_avg[-1] - inf_rpi[-1]
-gap_top_rpi = sal_top[-1] - inf_rpi[-1]
-rpi_req = inf_rpi[-1]
+# --- ANALYSIS SECTION ---
+st.markdown("### 📊 The Deficit Analysis (2025)")
 
-st.markdown("### 📉 The Verdict")
-col1, col2, col3 = st.columns(3)
-col1.metric("Required for RPI", f"£{int(rpi_req):,}", f"Cost of Living")
-col2.metric("Avg Worker Salary", f"£{int(sal_avg[-1]):,}", f"{int(gap_rpi):,} deficit", delta_color="inverse")
-col3.metric("Top Performer Gap", f"{int(gap_top_rpi):,}", "Even the best are losing", delta_color="inverse")
+# Calculate gaps
+gap_cpi = sal_avg[-1] - inf_cpi[-1]
+gap_rpi = sal_avg[-1] - inf_rpi[-1]
+
+c1, c2, c3 = st.columns(3)
+c1.metric("CPI Need (Renters)", f"£{int(inf_cpi[-1]):,}")
+c2.metric("RPI Need (Mortgages)", f"£{int(inf_rpi[-1]):,}")
+c3.metric("Your Salary (Avg)", f"£{int(sal_avg[-1]):,}")
+
+st.markdown("---")
+
+if gap_cpi < 0:
+    st.error(f"""
+    **If you rent/own outright:** You are **£{abs(int(gap_cpi)):,}** poorer than in 2020.
+    The company under-matched CPI in 2022 (2.5% vs 7.0%) and 2023 (8.8% vs 10.1%).
+    """)
 
 if gap_rpi < 0:
-    st.error(f"⚠️ **Conclusion:** An Average Worker is **£{abs(int(gap_rpi)):,}** worse off than in 2020 when adjusted for RPI.")
+    st.error(f"""
+    **If you have a mortgage:** You are **£{abs(int(gap_rpi)):,}** poorer than in 2020.
+    RPI peaked at 13.5% in 2023, but you likely received a raise of ~5%.
+    """)
+
+st.caption("Sources: ONS Consumer Price Inflation (Series D7G7 for CPI, CZBH for RPI) - March of each year.")
