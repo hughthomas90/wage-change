@@ -153,10 +153,10 @@ if show_cpi:
         hovertemplate="<b>%{x}</b><br>Need: £%{y:,.0f}<br>CPI: %{customdata}%", customdata=m_cpi
     ))
 
-# 3. Company Table (Red)
+# 3. CPIH (Red)
 if show_table:
     fig.add_trace(go.Scatter(
-        x=years, y=inf_tab, mode='lines+markers', name='Company Table',
+        x=years, y=inf_tab, mode='lines+markers', name='CPIH',
         line=dict(color='#e74c3c', width=2),
         hovertemplate="<b>%{x}</b><br>Need: £%{y:,.0f}<br>Table: %{customdata}%", customdata=m_tab
     ))
