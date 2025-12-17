@@ -5,10 +5,10 @@ import plotly.graph_objects as go
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Salary Negotiation Master", layout="wide")
 
-st.title("💸 The Salary Reality Check: CPI vs RPI vs Company")
+st.title("The Salary Reality Check: Salary increases versus inflation")
 st.markdown("""
-**Choose your truth:**
-* **Company Line:** The inflation figures used to justify your pay (likely CPIH or cherry-picked).
+**Choose your metric:**
+* **CPIH:** CPIH calculates housing costs using "Rental Equivalence", and can move slowly in times of acute inflation.
 * **CPI (Blue):** Best if you **rent** or own outright. Tracks goods/services but excludes owner-occupier housing.
 * **RPI (Purple):** Best if you have a **mortgage**. Tracks the real cost of debt and housing.
 """)
@@ -18,9 +18,9 @@ st.sidebar.header("1. Personal Details")
 start_salary = st.sidebar.number_input("Starting Salary in March 2020 (£)", value=48000, step=1000)
 
 st.sidebar.header("2. Choose Your Inflation")
-show_cpi = st.sidebar.checkbox("Show CPI (Renters/No Mortgage)", value=True, help="Consumer Prices Index (March). Best for pure cost of living.")
-show_rpi = st.sidebar.checkbox("Show RPI (Mortgage Holders)", value=True, help="Retail Prices Index (March). Includes housing interest.")
-show_table = st.sidebar.checkbox("Show Company Table (The Justification)", value=True, help="The numbers from your image.")
+show_cpi = st.sidebar.checkbox("Show CPI", value=True, help="Consumer Prices Index (March). Best for pure cost of living.")
+show_rpi = st.sidebar.checkbox("Show RPI", value=True, help="Retail Prices Index (March). Includes housing interest.")
+show_table = st.sidebar.checkbox("Show CPIH", value=True, help="The numbers from your image.")
 
 st.sidebar.header("3. Footnote Adjustments")
 apply_2022_adj = st.sidebar.checkbox("Apply 2022 Low Earner Adj?", value=True)
