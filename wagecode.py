@@ -18,9 +18,38 @@ st.sidebar.header("Configuration")
 start_salary = st.sidebar.number_input("Starting Salary in 2020 (£)", value=40000, step=1000)
 
 st.sidebar.header("Main Graph Settings")
-show_cpih = st.sidebar.checkbox("Show CPIH Trajectory", value=True)
-show_cpi = st.sidebar.checkbox("Show CPI Trajectory", value=True)
-show_rpi = st.sidebar.checkbox("Show RPI Trajectory", value=True)
+show_cpih = st.sidebar.checkbox(
+    "Show CPIH Trajectory", 
+    value=True,
+    help="**Consumer Prices Index including owner occupiers' housing costs (CPIH)**\n\n**How it works:** The most comprehensive measure. It tracks the change in prices for a basket of goods and services, explicitly INCLUDING costs associated with owning, maintaining, and living in one's own home.\n\n**Who it is for:** Homeowners and those wanting the most accurate picture of total living costs."
+)
+show_cpi = st.sidebar.checkbox(
+    "Show CPI Trajectory", 
+    value=True,
+    help="**Consumer Prices Index (CPI)**\n\n**How it works:** Measures the average change in prices for a basket of goods and services, but EXCLUDES owner-occupiers' housing costs (like mortgage interest).\n\n**Who it is for:** Renters and for international comparisons (as it follows standard global methodologies)."
+)
+show_rpi = st.sidebar.checkbox(
+    "Show RPI Trajectory", 
+    value=True,
+    help="**Retail Prices Index (RPI)**\n\n**How it works:** A long-standing measure that tracks prices including mortgage interest payments and house depreciation.\n\n**Who it is for:** Frequently used in wage bargaining (Unions), setting rail fares, and calculating interest on student loans."
+)
+
+st.sidebar.header("Performance Scenarios")
+show_outstanding = st.sidebar.checkbox(
+    "Show Outstanding", 
+    value=True, 
+    help="**Outstanding**\n\nTop tier rating. Typically awarded to employees who significantly exceed all objectives and demonstrate exceptional behavior. Often limited to the top 10-20% of staff."
+)
+show_above = st.sidebar.checkbox(
+    "Show Above Average", 
+    value=True, 
+    help="**Very Strong / Above Average**\n\nHigh performance rating. Awarded to employees who exceed expectations in critical areas and consistently deliver high-quality work."
+)
+show_average = st.sidebar.checkbox(
+    "Show Average", 
+    value=True, 
+    help="**Successful / Average**\n\nStandard rating. Indicates the employee meets all role requirements and objectives. The majority of employees typically fall into this category."
+)
 
 st.sidebar.header("Footnote Adjustments")
 apply_2022_adj = st.sidebar.checkbox("2022: Low Earner Adjustment", value=True, help="Adds +1% if salary <50k, +2% if <30k")
@@ -158,21 +187,26 @@ if show_cpih:
     ))
 
 # Salary Lines
-fig.add_trace(go.Scatter(
-    x=years, y=sal_top, name='Outstanding Performance', mode='lines+markers',
-    line=dict(color='#27ae60', width=3),
-    hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_top
-))
-fig.add_trace(go.Scatter(
-    x=years, y=sal_abv, name='Above Average', mode='lines+markers',
-    line=dict(color='#3498db', width=3),
-    hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_abv
-))
-fig.add_trace(go.Scatter(
-    x=years, y=sal_avg, name='Average Performance', mode='lines+markers',
-    line=dict(color='#f39c12', width=3),
-    hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_avg
-))
+if show_outstanding:
+    fig.add_trace(go.Scatter(
+        x=years, y=sal_top, name='Outstanding Performance', mode='lines+markers',
+        line=dict(color='#27ae60', width=3),
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_top
+    ))
+
+if show_above:
+    fig.add_trace(go.Scatter(
+        x=years, y=sal_abv, name='Above Average', mode='lines+markers',
+        line=dict(color='#3498db', width=3),
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_abv
+    ))
+
+if show_average:
+    fig.add_trace(go.Scatter(
+        x=years, y=sal_avg, name='Average Performance', mode='lines+markers',
+        line=dict(color='#f39c12', width=3),
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_avg
+    ))
 
 fig.update_layout(
     xaxis_title="Year", yaxis_title="Salary (£)",
@@ -212,21 +246,26 @@ fig_erosion = go.Figure()
 # Add zero line
 fig_erosion.add_hline(y=0, line_dash="dot", line_color="black", annotation_text="2020 Purchasing Power")
 
-fig_erosion.add_trace(go.Scatter(
-    x=years, y=real_top, name='Outstanding (Real Terms)',
-    mode='lines+markers', line=dict(color='#27ae60', width=3),
-    hovertemplate="%{y:.1f}%"
-))
-fig_erosion.add_trace(go.Scatter(
-    x=years, y=real_abv, name='Above Avg (Real Terms)',
-    mode='lines+markers', line=dict(color='#3498db', width=3),
-    hovertemplate="%{y:.1f}%"
-))
-fig_erosion.add_trace(go.Scatter(
-    x=years, y=real_avg, name='Average (Real Terms)',
-    mode='lines+markers', line=dict(color='#f39c12', width=3),
-    hovertemplate="%{y:.1f}%"
-))
+if show_outstanding:
+    fig_erosion.add_trace(go.Scatter(
+        x=years, y=real_top, name='Outstanding (Real Terms)',
+        mode='lines+markers', line=dict(color='#27ae60', width=3),
+        hovertemplate="%{y:.1f}%"
+    ))
+
+if show_above:
+    fig_erosion.add_trace(go.Scatter(
+        x=years, y=real_abv, name='Above Avg (Real Terms)',
+        mode='lines+markers', line=dict(color='#3498db', width=3),
+        hovertemplate="%{y:.1f}%"
+    ))
+
+if show_average:
+    fig_erosion.add_trace(go.Scatter(
+        x=years, y=real_avg, name='Average (Real Terms)',
+        mode='lines+markers', line=dict(color='#f39c12', width=3),
+        hovertemplate="%{y:.1f}%"
+    ))
 
 # Fill area below zero to show "Erosion Zone"
 # We need to determine the min Y to set the rectangle bottom
