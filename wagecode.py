@@ -40,21 +40,21 @@ show_outstanding = st.sidebar.checkbox(
     value=True, 
     help="**Outstanding**\n\nTop tier rating. Typically awarded to employees who significantly exceed all objectives and demonstrate exceptional behavior. Often limited to the top 10-20% of staff."
 )
-show_above = st.sidebar.checkbox(
-    "Show Above Average", 
+show_very_strong = st.sidebar.checkbox(
+    "Show Very Strong", 
     value=True, 
-    help="**Very Strong / Above Average**\n\nHigh performance rating. Awarded to employees who exceed expectations in critical areas and consistently deliver high-quality work."
+    help="**Very Strong** (formerly Above Average)\n\nHigh performance rating. Awarded to employees who exceed expectations in critical areas and consistently deliver high-quality work."
 )
-show_average = st.sidebar.checkbox(
-    "Show Average", 
+show_successful = st.sidebar.checkbox(
+    "Show Successful", 
     value=True, 
-    help="**Successful / Average**\n\nStandard rating. Indicates the employee meets all role requirements and objectives. The majority of employees typically fall into this category."
+    help="**Successful** (formerly Average)\n\nStandard rating. Indicates the employee meets all role requirements and objectives. The majority of employees typically fall into this category."
 )
 
 st.sidebar.header("Footnote Adjustments")
-apply_2022_adj = st.sidebar.checkbox("2022: Low Earner Adjustment", value=True, help="Adds +1% if salary <50k, +2% if <30k")
-apply_2023_adj = st.sidebar.checkbox("2023: Cost of Living Adjustment", value=True, help="Adds +2-3% based on salary tiers")
-apply_2024_adj = st.sidebar.checkbox("2024: Variance Adjustment", value=True, help="Adds bump for lower earners")
+apply_2022_adj = st.sidebar.checkbox("2022: Low/Median Earner Adjustment", value=True, help="Adds +1% for median salaries (30-50k) and +2% for low salaries (<=30k).")
+apply_2023_adj = st.sidebar.checkbox("2023: Cost of Living Adjustment", value=True, help="Adds a flat +2% Cost of Living adjustment to all grades.")
+apply_2024_adj = st.sidebar.checkbox("2024: Variance Adjustment", value=True, help="Adjusts based on salary band: Low salaries (<37k) +1%, High salaries (>50k) -1%.")
 
 # --- DATA ---
 years = [2020, 2021, 2022, 2023, 2024, 2025]
@@ -116,27 +116,37 @@ def calculate_trajectory(mode):
         pct_change = 0.0
         
         # Salary Logic
-        if mode in ['avg', 'above', 'top']:
-            # Determine Base Rate
-            if mode == 'top': idx = 0 
-            elif mode == 'avg': idx = 2 
-            else: idx = 2 if year <= 2022 else 1 
+        if mode in ['successful', 'verystrong', 'outstanding']:
+            # Determine Base Rate (Indices: 0=Outstanding, 1=Very Strong, 2=Successful)
+            if mode == 'outstanding': idx = 0 
+            elif mode == 'verystrong': idx = 1 
+            else: idx = 2 # successful
             
             base = pay_rates[year][idx]
             
             # Apply Adjustments
             adj = 0.0
-            if year == 2022 and apply_2022_adj:
-                if current_val <= 30000: adj = 2.0
-                elif current_val <= 50000: adj = 1.0
             
+            # 2022: Low Earner Adjustment
+            # Logic: 30-50k = +1%, <=30k = +2%
+            if year == 2022 and apply_2022_adj:
+                if current_val <= 30000:
+                    adj = 2.0
+                elif current_val <= 50000:
+                    adj = 1.0
+            
+            # 2023: Cost of Living Adjustment
+            # Logic: Flat +2% to base option
             if year == 2023 and apply_2023_adj:
-                if current_val <= 50000: adj = 2.5
-                else: adj = 2.0
+                adj = 2.0
                 
+            # 2024: Variance Adjustment
+            # Logic: Low (<37k) +1%, High (>50k) -1%
             if year == 2024 and apply_2024_adj:
-                if current_val <= 50000: adj = 1.5
-                else: adj = 1.0
+                if current_val < 37000:
+                    adj = 1.0
+                elif current_val > 50000:
+                    adj = -1.0
             
             pct_change = base + adj
             
@@ -152,9 +162,9 @@ def calculate_trajectory(mode):
     return trajectory, meta_changes
 
 # Calculate Trajectories
-sal_avg, m_avg = calculate_trajectory('avg')
-sal_abv, m_abv = calculate_trajectory('above')
-sal_top, m_top = calculate_trajectory('top')
+sal_successful, m_successful = calculate_trajectory('successful')
+sal_verystrong, m_verystrong = calculate_trajectory('verystrong')
+sal_outstanding, m_outstanding = calculate_trajectory('outstanding')
 
 inf_cpih, m_cpih = calculate_trajectory('cpih')
 inf_cpi, m_cpi = calculate_trajectory('cpi')
@@ -189,23 +199,23 @@ if show_cpih:
 # Salary Lines
 if show_outstanding:
     fig.add_trace(go.Scatter(
-        x=years, y=sal_top, name='Outstanding Performance', mode='lines+markers',
+        x=years, y=sal_outstanding, name='Outstanding Performance', mode='lines+markers',
         line=dict(color='#27ae60', width=3),
-        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_top
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_outstanding
     ))
 
-if show_above:
+if show_very_strong:
     fig.add_trace(go.Scatter(
-        x=years, y=sal_abv, name='Above Average', mode='lines+markers',
+        x=years, y=sal_verystrong, name='Very Strong Performance', mode='lines+markers',
         line=dict(color='#3498db', width=3),
-        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_abv
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_verystrong
     ))
 
-if show_average:
+if show_successful:
     fig.add_trace(go.Scatter(
-        x=years, y=sal_avg, name='Average Performance', mode='lines+markers',
+        x=years, y=sal_successful, name='Successful Performance', mode='lines+markers',
         line=dict(color='#f39c12', width=3),
-        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_avg
+        hovertemplate="£%{y:,.0f} (+%{customdata:.2f}%)", customdata=m_successful
     ))
 
 fig.update_layout(
@@ -237,9 +247,9 @@ elif erosion_index == "CPI": ref_traj = inf_cpi
 else: ref_traj = inf_rpi
 
 # Recalculate based on selection
-real_avg = calculate_real_term_change(sal_avg, ref_traj)
-real_abv = calculate_real_term_change(sal_abv, ref_traj)
-real_top = calculate_real_term_change(sal_top, ref_traj)
+real_successful = calculate_real_term_change(sal_successful, ref_traj)
+real_verystrong = calculate_real_term_change(sal_verystrong, ref_traj)
+real_outstanding = calculate_real_term_change(sal_outstanding, ref_traj)
 
 fig_erosion = go.Figure()
 
@@ -248,29 +258,39 @@ fig_erosion.add_hline(y=0, line_dash="dot", line_color="black", annotation_text=
 
 if show_outstanding:
     fig_erosion.add_trace(go.Scatter(
-        x=years, y=real_top, name='Outstanding (Real Terms)',
+        x=years, y=real_outstanding, name='Outstanding (Real Terms)',
         mode='lines+markers', line=dict(color='#27ae60', width=3),
         hovertemplate="%{y:.1f}%"
     ))
 
-if show_above:
+if show_very_strong:
     fig_erosion.add_trace(go.Scatter(
-        x=years, y=real_abv, name='Above Avg (Real Terms)',
+        x=years, y=real_verystrong, name='Very Strong (Real Terms)',
         mode='lines+markers', line=dict(color='#3498db', width=3),
         hovertemplate="%{y:.1f}%"
     ))
 
-if show_average:
+if show_successful:
     fig_erosion.add_trace(go.Scatter(
-        x=years, y=real_avg, name='Average (Real Terms)',
+        x=years, y=real_successful, name='Successful (Real Terms)',
         mode='lines+markers', line=dict(color='#f39c12', width=3),
         hovertemplate="%{y:.1f}%"
     ))
 
 # Fill area below zero to show "Erosion Zone"
 # We need to determine the min Y to set the rectangle bottom
-min_y = min(min(real_avg), min(real_abv), min(real_top), 0)
-max_y = max(max(real_avg), max(real_abv), max(real_top), 0)
+min_vals = [0]
+if show_successful: min_vals.append(min(real_successful))
+if show_very_strong: min_vals.append(min(real_verystrong))
+if show_outstanding: min_vals.append(min(real_outstanding))
+
+max_vals = [0]
+if show_successful: max_vals.append(max(real_successful))
+if show_very_strong: max_vals.append(max(real_verystrong))
+if show_outstanding: max_vals.append(max(real_outstanding))
+
+min_y = min(min_vals)
+max_y = max(max_vals)
 
 fig_erosion.add_hrect(y0=-100, y1=0, fillcolor="red", opacity=0.1, layer="below", line_width=0)
 
@@ -288,6 +308,6 @@ st.plotly_chart(fig_erosion, use_container_width=True)
 st.markdown("---")
 col1, col2, col3 = st.columns(3)
 col1.metric("2025 CPIH Cumulative", f"£{int(inf_cpih[-1]):,}", delta=f"{(inf_cpih[-1]/start_salary - 1)*100:.1f}% vs 2020", delta_color="inverse")
-col2.metric("2025 Avg Salary", f"£{int(sal_avg[-1]):,}", delta=f"{(sal_avg[-1]/start_salary - 1)*100:.1f}% vs 2020")
-real_loss_val = real_avg[-1]
+col2.metric("2025 Successful Salary", f"£{int(sal_successful[-1]):,}", delta=f"{(sal_successful[-1]/start_salary - 1)*100:.1f}% vs 2020")
+real_loss_val = real_successful[-1]
 col3.metric(f"Real Terms Impact ({erosion_index})", f"{real_loss_val:.1f}%", delta_color="normal" if real_loss_val > 0 else "inverse")
